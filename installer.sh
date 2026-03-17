@@ -1,79 +1,71 @@
 #!/bin/sh
-# ###########################################
-# SCRIPT : DOWNLOAD AND INSTALL Channel
-# ###########################################
 # Command:
 # wget https://raw.githubusercontent.com/emilnabil/channel-hazem-wahba/main/installer.sh -qO - | /bin/sh
+###########################################
+MY_URL="https://raw.githubusercontent.com/emilnabil/channel-hazem-wahba/main"
 
-TMPDIR='/tmp'
-PACKAGE='astra-sm'
-MY_URL='https://raw.githubusercontent.com/emilnabil/channel-hazem-wahba/main'
-VERSION=$(wget $MY_URL/version -qO- | cut -d "=" -f2-)
+echo "******************************************************************************************************************"
+echo "        DOWNLOAD AND INSTALL CHANNEL"
+echo "=================================================================================================================="
 
-if [ -f /etc/opkg/opkg.conf ]; then
-    STATUS='/var/lib/opkg/status'
-    OSTYPE='Opensource'
-    OPKG='opkg update'
-    OPKGINSTAL='opkg install'
-fi
+echo "        REMOVE OLD CHANNELS..."
+rm -rf /etc/enigma2/lamedb
+rm -rf /etc/enigma2/*.tv
+rm -rf /etc/enigma2/*.radio
+rm -rf /etc/enigma2/userbouquet.*
+rm -rf /etc/enigma2/epg.dat
+rm -rf /etc/enigma2/timers.xml
+rm -rf /home/root/.cache/enigma2
 
-# detect image name
-if [ -f /etc/image-version ]; then
-    IMAGE_NAME=$(cat /etc/image-version)
-elif [ -f /etc/version ]; then
-    IMAGE_NAME=$(cat /etc/version)
-else
-    IMAGE_NAME=$(uname -s)
-fi
+echo "        INSTALLING NEW CHANNELS..."
+cd /tmp || exit 1
 
-rm -rf /etc/enigma2/lamedb /etc/enigma2/*list /etc/enigma2/*.tv /etc/enigma2/*.radio
-
-install() {
-    if ! grep -qs "Package: $1" $STATUS; then
-        $OPKG >/dev/null 2>&1
-        echo ">> Installing required package: $1"
-        $OPKGINSTAL "$1" >/dev/null 2>&1
-        sleep 1
+if wget -q "${MY_URL}/channels_hazem-wahba.tar.gz"; then
+    if [ -s channels_hazem-wahba.tar.gz ]; then
+        tar -xzf channels_hazem-wahba.tar.gz -C /
+        rm -f channels_hazem-wahba.tar.gz
+        echo "        CHANNELS INSTALLED SUCCESSFULLY"
+    else
+        echo "        ERROR: Downloaded file is empty"
+        rm -f channels_hazem-wahba.tar.gz
+        exit 1
     fi
-}
-
-if [ "$OSTYPE" = "Opensource" ]; then
-    for i in dvbsnoop $PACKAGE; do
-        install $i
-    done
-fi
-
-echo
-echo ">> Downloading and installing channel list..."
-wget $MY_URL/channels_hazem-wahba.tar.gz -qP $TMPDIR
-tar -zxf $TMPDIR/channels_hazem-wahba.tar.gz -C /
-sleep 5
-
-echo
-echo ">> Reloading services..."
-wget -qO - http://127.0.0.1/web/servicelistreload?mode=0 >/dev/null 2>&1
-sleep 2
-
-rm -rf ${TMPDIR}/channels_hazem-wahba.tar.gz
-sync
-
-echo
-echo "**************************************************"
-echo "# Channel and config installed successfully      #"
-echo "# Uploaded by >>>> EMIL_NABIL                    #"
-echo "# Version: ${VERSION}                            #"
-echo "# Image: ${IMAGE_NAME}                           #"
-echo "# System type: ${OSTYPE}                         #"
-echo "# Your device will restart now                   #"
-echo "**************************************************"
-sleep 4
-
-if [ "$OSTYPE" = "Opensource" ]; then
-    killall -9 enigma2
 else
-    systemctl restart enigma2
+    echo "        ERROR: Failed to download channels file"
+    exit 1
 fi
+
+echo "        FIXING PERMISSIONS..."
+chmod 644 /etc/enigma2/lamedb 2>/dev/null
+chmod 644 /etc/enigma2/*.tv 2>/dev/null
+chmod 644 /etc/enigma2/*.radio 2>/dev/null
+chmod 644 /etc/enigma2/userbouquet.* 2>/dev/null
+
+echo "        INSTALLING ASTRA-SM PATCH"
+if command -v opkg >/dev/null 2>&1; then
+    opkg update >/dev/null 2>&1
+    opkg install astra-sm >/dev/null 2>&1
+    echo "        ASTRA-SM INSTALLED"
+fi
+
+echo "        RELOADING CHANNELS..."
+sleep 2
+if command -v wget >/dev/null 2>&1; then
+    wget -qO- http://127.0.0.1/web/servicelistreload?mode=0 >/dev/null 2>&1
+    wget -qO- http://127.0.0.1/web/servicelistreload?mode=2 >/dev/null 2>&1
+    echo "        CHANNELS RELOADED VIA WEBIF"
+fi
+
+echo "****************************************************************************************************************************"
+echo "#       CHANNEL INSTALLED SUCCESSFULLY       #"
+echo "*********************************************************"
+echo "********************************************************************************"
+echo "   UPLOADED BY >>>> EMIL_NABIL"
+echo "========================================================================================================================="
+echo "        INSTALLATION COMPLETE"
+echo "**********************************************************************************"
+echo "        If Enigma2 doesn't restart automatically, please reboot manually"
+echo "**********************************************************************************"
 
 exit 0
-
 
